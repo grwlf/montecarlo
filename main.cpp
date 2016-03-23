@@ -11,10 +11,23 @@ using namespace std;
 
 constexpr int EPS = 100000; // 10%-greedy
 
-struct board {
-  enum class cell {X, O, Empty};
+#define FOR_EACH_LOOP(i,j)                  \
+    for (int i=0; i < Board::size; i++)     \
+        for (int j=0; j < Board::size; j++) \
 
-  static const int size = 3;
+#define FOR_EACH_EMPTY(b)                               \
+    FOR_EACH_LOOP(i,j)                                  \
+        if (b.board[i][j] == Board::cell::Empty)
+
+struct Board {
+    enum class cell {X, O, Empty};
+    static constexpr int size = 3;
+
+    Board() {
+        FOR_EACH_LOOP(i,j) {
+            board[i][j] = cell::Empty;
+        }
+    }
 
   cell board[size][size];
 };
@@ -24,16 +37,7 @@ struct action {
   int y; // 0..2
 };
 
-#define FOR_EACH_LOOP(i,j)                  \
-    for (int i=0; i < board::size; i++)     \
-        for (int j=0; j < board::size; j++) \
-
-#define FOR_EACH_EMPTY(b)                               \
-    FOR_EACH_LOOP(i,j)                                  \
-        if (b.board[i][j] == board::cell::Empty)
-
-
-bool move ( board &bo, board::cell who, action a) {
+bool move ( Board &bo, Board::cell who, action a) {
   bo.board[a.x][a.y] = who;
 
 #define b bo.board
@@ -63,7 +67,7 @@ namespace std {
         }
     };
 
-    bool operator==(const board &b1, const board &b2) {
+    bool operator==(const Board &b1, const Board &b2) {
         FOR_EACH_LOOP(i,j) {
             if (b1.board[i][j] != b2.board[i][j]) {
                 return false;
@@ -73,8 +77,8 @@ namespace std {
     }
 
     template <>
-    struct hash<board> {
-        size_t operator()(const board& a) const {
+    struct hash<Board> {
+        size_t operator()(const Board& a) const {
             size_t acc;
             for(int y=0; y<3; y++) {
               for(int x=0; x<3; x++) {
@@ -86,9 +90,9 @@ namespace std {
     };
 
     template <>
-    struct hash< pair<board,action> > {
-        size_t operator()(const pair<board,action>& a) const {
-            return hash<board>()(a.first) ^  hash<action>()(a.second);
+    struct hash< pair<Board,action> > {
+        size_t operator()(const pair<Board,action>& a) const {
+            return hash<Board>()(a.first) ^  hash<action>()(a.second);
         }
     };
 }
@@ -114,10 +118,10 @@ struct ActionStats {
 };
 
 struct policy {
-  unordered_map<board, ActionStats> actmap;
+  unordered_map<Board, ActionStats> actmap;
 };
 
-action sample_policy( const policy& p, const board &b )
+action sample_policy( const policy& p, const Board &b )
 {
     int num_empties = 0;
     FOR_EACH_EMPTY(b) {
@@ -139,9 +143,14 @@ action sample_policy( const policy& p, const board &b )
 }
 
 struct Q {
-  unordered_map< pair<board, action>, double > qmap;
+  unordered_map< pair<Board, action>, double > qmap;
 };
 
+void driver(policy &player1, policy &player2) {
+    while(true) { // episode
+        Board b;
+    }
+}
 
 int main() {
   return 0;
