@@ -20,8 +20,11 @@ constexpr int EPS = 100000; // 10%-greedy
         if (b.At(i,j) == Board::cell::Empty)
 
 struct action {
-  int i; // 0..2
-  int j; // 0..2
+    int i; // 0..2
+    int j; // 0..2
+    void Print() const {
+        fprintf(stdout, "<%d;%d>\n", i,j);
+    }
 };
 
 enum class MoveResult { Draw, Win, Continue };
@@ -88,7 +91,7 @@ public:
         };
         return c;
     }
-        
+
 private:
     cell board[size][size];
     int num_empties = size*size;
@@ -120,7 +123,7 @@ namespace std {
     template <>
     struct hash<Board> {
         size_t operator()(const Board& b) const {
-            size_t acc;
+            size_t acc = 0;
             FOR_EACH_LOOP(i,j) {
                 acc = (acc << 2)  ^ (1+ (size_t)b.At(i,j));
             }
@@ -186,9 +189,11 @@ void driver(policy &player1, policy &player2) {
         all_actions.push_back({i,j});
     }
 
+    double avg_reward = 0;
+
     vector<StateAct> episode1;
     vector<StateAct> episode2;
-    while(true) { // episode
+    for (int k=0; k < 100000; k++) { // episode
         Board b;
         episode1.clear();
         episode2.clear();
@@ -199,7 +204,7 @@ void driver(policy &player1, policy &player2) {
             episode1.push_back({b, a1});
 
             MoveResult res = b.Move(a1, Board::cell::X);
-            b.Print();
+//            b.Print();
             if (res == MoveResult::Win) {
                 reward = 1;
                 break;
@@ -213,7 +218,7 @@ void driver(policy &player1, policy &player2) {
 
             res = b.Move(a2, Board::cell::O);
 
-            b.Print();
+//            b.Print();
             if (res == MoveResult::Win) {
                 reward = -1;
                 break;
@@ -222,28 +227,34 @@ void driver(policy &player1, policy &player2) {
                 break;
             }
         }
+        // Storing reward
         for (const auto &sa : episode1) {
             q1.qmap[sa].Add(reward);
         }
+        // Updating policy
         for (const auto &sa : episode1) {
             const Board &sb = sa.first;
             double best = -1e6;
             action best_a;
+            bool found=false;
             for (const auto &a : all_actions) {
                 auto q = q1.qmap.find({sb, a});
                 if (q != q1.qmap.end()) {
-                    q->first.first.Print();
                     double v= q->second.Avg();
                     if (v > best) {
                         best_a = a;
                         best = v;
+                        found = true;
                     }
                 }
             }
+            assert(found);
             player1.actmap[sb] = best_a;
         }
 
-        break;
+        avg_reward = avg_reward * 0.99 + reward * 0.01;
+
+        printf("q %d, p %d r %d ar %f\n", q1.qmap.size(), player1.actmap.size(), reward, avg_reward);
     }
 }
 
@@ -251,13 +262,11 @@ int main() {
     policy p1, p2;
     driver(p1,p2);
 
+    return 0;
     for (auto &it : p1.actmap) {
-        fprintf(stderr, "opt %d;%d in\n", it.second.i, it.second.j);
+        fprintf(stdout, "opt %d;%d in\n", it.second.i, it.second.j);
         it.first.Print();
     }
 
     return 0;
 }
-
-
-
