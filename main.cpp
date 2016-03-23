@@ -17,7 +17,7 @@ constexpr int EPS = 100000; // 10%-greedy
 
 #define FOR_EACH_EMPTY(b)                               \
     FOR_EACH_LOOP(i,j)                                  \
-        if (b.board[i][j] == Board::cell::Empty)
+        if (b.At(i,j) == Board::cell::Empty)
 
 struct action {
   int i; // 0..2
@@ -68,25 +68,29 @@ public:
     }
     void Print() const {
         FOR_EACH_LOOP(i,j) {
-            const char *c;
-            switch(At(i,j)) {
-            case cell::X:
-                c = "X";
-                break;
-            case cell::O:
-                c = "O";
-                break;
-            case cell::Empty:
-                c = ".";
-                break;
-            };
-            fprintf(stdout,"%s%s", c, (j == size-1) ? "\n":"");
+            fprintf(stdout,"%s%s", CellToStr(At(i,j)), (j == size-1) ? "\n":"");
         }
         fprintf(stdout, "\n");
     }
     int NumEmpties() const { return num_empties; }
-    cell board[size][size];
+    static const char *CellToStr(cell ce) {
+        const char *c;
+        switch(ce) {
+        case cell::X:
+            c = "X";
+            break;
+        case cell::O:
+            c = "O";
+            break;
+        case cell::Empty:
+            c = ".";
+            break;
+        };
+        return c;
+    }
+        
 private:
+    cell board[size][size];
     int num_empties = size*size;
 };
 
@@ -109,14 +113,16 @@ namespace std {
         return true;
     }
 
+    bool operator==(const action a1, const action a2) {
+        return a1.i == a2.i && a1.j == a2.j;
+    }
+
     template <>
     struct hash<Board> {
-        size_t operator()(const Board& a) const {
+        size_t operator()(const Board& b) const {
             size_t acc;
-            for(int y=0; y<3; y++) {
-              for(int x=0; x<3; x++) {
-                acc = (acc << 2)  ^ (1+ (size_t)a.board[x][y]);
-              }
+            FOR_EACH_LOOP(i,j) {
+                acc = (acc << 2)  ^ (1+ (size_t)b.At(i,j));
             }
             return acc;
         }
@@ -125,7 +131,7 @@ namespace std {
     template <>
     struct hash< pair<Board,action> > {
         size_t operator()(const pair<Board,action>& a) const {
-            return hash<Board>()(a.first) ^  hash<action>()(a.second);
+            return hash<Board>()(a.first) ^ hash<action>()(a.second);
         }
     };
 }
@@ -175,6 +181,11 @@ void driver(policy &player1, policy &player2) {
     Q q1;
     Q q2;
 
+    vector<action> all_actions;
+    FOR_EACH_LOOP(i,j) {
+        all_actions.push_back({i,j});
+    }
+
     vector<StateAct> episode1;
     vector<StateAct> episode2;
     while(true) { // episode
@@ -185,6 +196,8 @@ void driver(policy &player1, policy &player2) {
         int reward = 0;
         while(true) {
             action a1 = sample_policy(player1, b);
+            episode1.push_back({b, a1});
+
             MoveResult res = b.Move(a1, Board::cell::X);
             b.Print();
             if (res == MoveResult::Win) {
@@ -194,8 +207,12 @@ void driver(policy &player1, policy &player2) {
                 reward = 0;
                 break;
             }
+
             action a2 = sample_policy(player2, b);
+            episode2.push_back({b, a2});
+
             res = b.Move(a2, Board::cell::O);
+
             b.Print();
             if (res == MoveResult::Win) {
                 reward = -1;
@@ -205,6 +222,27 @@ void driver(policy &player1, policy &player2) {
                 break;
             }
         }
+        for (const auto &sa : episode1) {
+            q1.qmap[sa].Add(reward);
+        }
+        for (const auto &sa : episode1) {
+            const Board &sb = sa.first;
+            double best = -1e6;
+            action best_a;
+            for (const auto &a : all_actions) {
+                auto q = q1.qmap.find({sb, a});
+                if (q != q1.qmap.end()) {
+                    q->first.first.Print();
+                    double v= q->second.Avg();
+                    if (v > best) {
+                        best_a = a;
+                        best = v;
+                    }
+                }
+            }
+            player1.actmap[sb] = best_a;
+        }
+
         break;
     }
 }
@@ -212,6 +250,12 @@ void driver(policy &player1, policy &player2) {
 int main() {
     policy p1, p2;
     driver(p1,p2);
+
+    for (auto &it : p1.actmap) {
+        fprintf(stderr, "opt %d;%d in\n", it.second.i, it.second.j);
+        it.first.Print();
+    }
+
     return 0;
 }
 
