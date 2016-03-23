@@ -93,10 +93,28 @@ namespace std {
     };
 }
 
+class Averager {
+public:
+    Averager(): avg(0), n(0) {}
+    void Add(double x) {
+        n++;
+        avg = avg + (x - avg) / n;
+    }
+    double Avg() const {
+        return avg;
+    }
+private:
+    double avg;
+    int n;
+};
+
+struct ActionStats {
+    action act;
+    Averager stats;
+};
 
 struct policy {
-  unordered_map<board, action> actmap;
-
+  unordered_map<board, ActionStats> actmap;
 };
 
 action sample_policy( const policy& p, const board &b )
@@ -116,7 +134,7 @@ action sample_policy( const policy& p, const board &b )
         }
         assert(false);
     } else {
-        return p_act->second;
+        return p_act->second.act;
     }
 }
 
