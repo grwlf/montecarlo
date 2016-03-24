@@ -180,29 +180,68 @@ struct Q {
   unordered_map< StateAct, Averager > qmap;
 };
 
-void driver(policy &player1, policy &player2) {
-    Q q1;
-    Q q2;
-
-    vector<action> all_actions;
-    FOR_EACH_LOOP(i,j) {
-        all_actions.push_back({i,j});
+class MCLearner {
+public:
+    action Sample(const Board &b) {
+        action a = sample_policy(pol, b);
+        episode.push_back({b,a});
+        return a;
     }
+    void Reward(int rew) {
+        single_reward = rew;
+    }
+    void UpdatePolicy() {
+        // Updating action values
+        for (const auto &sa : episode) {
+            act_values.qmap[sa].Add(single_reward);
+        }
+        // Updating policy
+        for (const auto &sa : episode) {
+            const Board &sb = sa.first;
+            double best = -1e6;
+            action best_a;
+            bool found=false;
+            FOR_EACH_LOOP(i,j) {
+                action a{i,j};
+                auto q = act_values.qmap.find({sb, a});
+                if (q != act_values.qmap.end()) {
+                    double v= q->second.Avg();
+                    if (v > best) {
+                        best_a = a;
+                        best = v;
+                        found = true;
+                    }
+                }
+            }
+            assert(found);
+            pol.actmap[sb] = best_a;
+        }
+        episode.clear();
+        single_reward = 0;
+    }
+    const Q &ActValues() const {
+        return act_values;
+    }
+    const policy &Policy() const {
+        return pol;
+    }
+private:
+    Q act_values;
+    policy pol;
 
+    vector<StateAct> episode;
+    int single_reward;
+};
+
+void driver(MCLearner &player1, policy &player2) {
     double avg_reward = 0;
 
-    vector<StateAct> episode1;
-    vector<StateAct> episode2;
     for (int k=0; k < 100000; k++) { // episode
         Board b;
-        episode1.clear();
-        episode2.clear();
 
         int reward = 0;
         while(true) {
-            action a1 = sample_policy(player1, b);
-            episode1.push_back({b, a1});
-
+            action a1 = player1.Sample(b);
             MoveResult res = b.Move(a1, Board::cell::X);
 //            b.Print();
             if (res == MoveResult::Win) {
@@ -214,8 +253,6 @@ void driver(policy &player1, policy &player2) {
             }
 
             action a2 = sample_policy(player2, b);
-            episode2.push_back({b, a2});
-
             res = b.Move(a2, Board::cell::O);
 
 //            b.Print();
@@ -227,43 +264,22 @@ void driver(policy &player1, policy &player2) {
                 break;
             }
         }
-        // Storing reward
-        for (const auto &sa : episode1) {
-            q1.qmap[sa].Add(reward);
-        }
-        // Updating policy
-        for (const auto &sa : episode1) {
-            const Board &sb = sa.first;
-            double best = -1e6;
-            action best_a;
-            bool found=false;
-            for (const auto &a : all_actions) {
-                auto q = q1.qmap.find({sb, a});
-                if (q != q1.qmap.end()) {
-                    double v= q->second.Avg();
-                    if (v > best) {
-                        best_a = a;
-                        best = v;
-                        found = true;
-                    }
-                }
-            }
-            assert(found);
-            player1.actmap[sb] = best_a;
-        }
+        player1.Reward(reward);
+        player1.UpdatePolicy();
 
         avg_reward = avg_reward * 0.99 + reward * 0.01;
 
-        printf("q %d, p %d r %d ar %f\n", q1.qmap.size(), player1.actmap.size(), reward, avg_reward);
+        printf("q %d, p %d r %d ar %f\n", player1.ActValues().qmap.size(), player1.Policy().actmap.size(), reward, avg_reward);
     }
 }
 
 int main() {
-    policy p1, p2;
+    MCLearner p1;
+    policy p2;
     driver(p1,p2);
 
     return 0;
-    for (auto &it : p1.actmap) {
+    for (auto &it : p1.Policy().actmap) {
         fprintf(stdout, "opt %d;%d in\n", it.second.i, it.second.j);
         it.first.Print();
     }
