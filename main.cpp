@@ -233,7 +233,7 @@ private:
     int single_reward;
 };
 
-void driver(MCLearner &player1, policy &player2) {
+void driver(MCLearner &player1, MCLearner &player2) {
     double avg_reward = 0;
 
     for (int k=0; k < 100000; k++) { // episode
@@ -252,9 +252,8 @@ void driver(MCLearner &player1, policy &player2) {
                 break;
             }
 
-            action a2 = sample_policy(player2, b);
+            action a2 = player2.Sample(b);
             res = b.Move(a2, Board::cell::O);
-
 //            b.Print();
             if (res == MoveResult::Win) {
                 reward = -1;
@@ -267,6 +266,10 @@ void driver(MCLearner &player1, policy &player2) {
         player1.Reward(reward);
         player1.UpdatePolicy();
 
+        player2.Reward(-reward);
+        player2.UpdatePolicy();
+
+
         avg_reward = avg_reward * 0.99 + reward * 0.01;
 
         printf("q %d, p %d r %d ar %f\n", player1.ActValues().qmap.size(), player1.Policy().actmap.size(), reward, avg_reward);
@@ -275,7 +278,8 @@ void driver(MCLearner &player1, policy &player2) {
 
 int main() {
     MCLearner p1;
-    policy p2;
+    MCLearner p2;
+
     driver(p1,p2);
 
     return 0;
