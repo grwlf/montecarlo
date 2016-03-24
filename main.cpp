@@ -9,8 +9,6 @@
 
 using namespace std;
 
-constexpr int EPS = 100000; // 10%-greedy
-
 #define FOR_EACH_LOOP(i,j)                  \
     for (int i=0; i < Board::size; i++)     \
         for (int j=0; j < Board::size; j++) \
@@ -158,22 +156,6 @@ struct policy {
   unordered_map<Board, action> actmap;
 };
 
-action sample_policy( const policy& p, const Board &b )
-{
-    const auto &p_act = p.actmap.find(b);
-
-    if (p_act == p.actmap.end() || (rand() % (1 << 20)) < EPS) {
-        int n = rand() % b.NumEmpties();
-        FOR_EACH_EMPTY(b) {
-            if (n == 0) return {i,j};
-            else n--;
-        }
-        assert(false);
-    } else {
-        return p_act->second;
-    }
-}
-
 typedef pair<Board, action> StateAct;
 
 struct Q {
@@ -182,11 +164,31 @@ struct Q {
 
 class MCLearner {
 public:
+    static constexpr int DENOM = 1<<20;
+
+    MCLearner(double eps): int_eps(DENOM * eps) {}
+
     action Sample(const Board &b) {
-        action a = sample_policy(pol, b);
+        action a;
+        const auto &p_act = pol.actmap.find(b);
+
+        if (p_act == pol.actmap.end() || (rand() % (1 << 20)) < int_eps) {
+            int n = rand() % b.NumEmpties();
+            FOR_EACH_EMPTY(b) {
+                if (n == 0) {
+                    a = {i,j};
+                    goto store;
+                } else n--;
+            }
+            assert(false);
+        } else {
+            return a = p_act->second;
+        }
+    store:
         episode.push_back({b,a});
         return a;
     }
+
     void Reward(int rew) {
         single_reward = rew;
     }
@@ -226,6 +228,7 @@ public:
         return pol;
     }
 private:
+    int int_eps;
     Q act_values;
     policy pol;
 
@@ -276,9 +279,9 @@ void driver(MCLearner &player1, MCLearner &player2) {
     }
 }
 
-int main() {
-    MCLearner p1;
-    MCLearner p2;
+int main(int argc, char argv[]) {
+    MCLearner p1(0.99);
+    MCLearner p2(0.01);
 
     driver(p1,p2);
 
