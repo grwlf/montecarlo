@@ -279,17 +279,22 @@ void driver(MCLearner &player1, MCLearner &player2) {
     }
 }
 
-int main(int argc, char argv[]) {
-    MCLearner p1(0.99);
-    MCLearner p2(0.01);
+int main(int argc, char *argv[]) {
+    if (argc != 3) goto print_usage;
+    else {
+        double eps1 = std::stod(string(argv[1]));
+        double eps2 = std::stod(string(argv[2]));
+        if (eps1 < 0 || eps1 > 1 || eps2 < 0 || eps2 > 1) {
+            goto print_usage;
+        } else {
+            MCLearner p1(eps1);
+            MCLearner p2(eps2);
 
-    driver(p1,p2);
-
-    return 0;
-    for (auto &it : p1.Policy().actmap) {
-        fprintf(stdout, "opt %d;%d in\n", it.second.i, it.second.j);
-        it.first.Print();
+            driver(p1,p2);
+            return 0;
+        }
     }
-
-    return 0;
+print_usage:
+    fprintf(stderr, "pass two epsilon-parameters for learners\n");
+    return 1;
 }
